@@ -120,10 +120,16 @@ void Algorithm::BBAlgorithm(Node n, int id, Tile * tiles)
 	{
 		if (n.value > max_price)
 		{
-			max_price = n.value;
-			board = n.board;
+			#pragma omp critical
+			{
+				if (n.value > max_price)
+				{
+					max_price = n.value;
+					board = n.board;
 
-			//printBoard(board);
+					//printBoard(board);
+				}
+			}
 		}
 		return;
 	}
@@ -247,7 +253,16 @@ int Algorithm::evalPoi(int number)
 	int zb=number%i2;
 	max+=c1*(zb/i1);
 	zb=zb%i1;
-	max+=zb*cn;
+	max+=zb*cn;#pragma omp critical
+		{
+			if (n.value > max_price)
+			{
+				max_price = n.value;
+				board = n.board;
+
+				//printBoard(board);
+			}
+		}
 
 	for(i=0;i<(number/i2);i++)
 	{

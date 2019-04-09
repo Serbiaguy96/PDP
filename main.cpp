@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <queue>
+#include <omp.h>
 
 using namespace std;
 
@@ -42,7 +43,7 @@ private:
 	int c1;
 	int c2;
 	int cn;
-	int depth = 8 * 10;
+	int depth = 8 * 5;
 
 public:
 	Algorithm(int cols, int rows, int i1, int i2, int c1, int c2, int cn);
@@ -90,16 +91,18 @@ void Algorithm::run(vector<vector<int>> b, Tile * tiles)
 	queue<QueuedNode> q_node;
 	n.board = b;
 	q_node = fillQueue(b, tiles);
-	cout << "Size of queue is: " << q_node.size() << endl;
+
 	while (!q_node.empty())
 	{
 		q.push_back(q_node.front());
 		q_node.pop();
 	}
+	unsigned int i = 0;
 	//printQueue();
-	for (QueuedNode q : q)
+	#pragma omp parallel for private(i)
+	for (i = 0; i < q.size(); i++)
 	{
-		BBAlgorithm(q.node, q.next_id, tiles);
+		BBAlgorithm(q[i].node, q[i].next_id, tiles);
 	}
 
 	//cout << "Final look of board: " << endl;
@@ -182,9 +185,7 @@ queue<QueuedNode> Algorithm::fillQueue(vector<vector<int>> b, Tile * tiles)
 				nodes_to_add += 1;
 			}
 		}
-		cout << "Nodes to add count: " << nodes_to_add << endl;
 		nodes_count += nodes_to_add - 1;
-		cout << "Nodes count: " << nodes_count << endl;
 		id += 1;
 	}
 

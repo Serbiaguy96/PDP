@@ -48,18 +48,18 @@ private:
 
 public:
 	Algorithm();
-	Algorithm(int cols, int rows, int i1, int i2, int c1, int c2, int cn);
-	void run(vector<vector<int>> b, Tile * tiles, int id);
+	Algorithm(int cols, int rows, int i1, int i2, int c1, int c2, int cn, int max_value);
+	void run(vector<vector<int>> b, vector<Tile> tiles, int id);
 	int countFreeTiles(vector<vector<int>> board);
 	int evalPoi(int number);
 	void printBoard(vector<vector<int>> board);
-	void BBAlgorithm(Node n,int id, Tile * tiles);
+	void BBAlgorithm(Node n,int id, vector<Tile> tiles);
 	position getFreePosition(vector<vector<int>> board);
 	Node createNewNode(Node n, int length, int value, int horizontal, position p, int id);
 	bool freePath(vector<vector<int>> board, bool horizontal, int length, position p);
 	int getMaxPrice(void);
 	vector<vector<int>> getBoard(void);
-	queue<QueuedNode> fillQueue(vector<vector<int>> b, Tile * tiles, int id);
+	queue<QueuedNode> fillQueue(vector<vector<int>> b, vector<Tile> tiles, int id);
 	void printQueue(void);
 	int getRows(void);
 	int getCols(void);
@@ -70,8 +70,23 @@ struct Box {
 	int value;
 	Algorithm a;
 	int id;
-	Tile * tiles;
+	vector<Tile> tiles;
 };
+
+vector<vector<int>> setBoard(int rows, int cols)
+{
+	vector<vector<int>> b;
+	for (int i = 0; i < rows; i++)
+	{
+		vector<int> tmp;
+		for (int j = 0; j < cols; j++)
+		{
+			 tmp.push_back(0);
+		}
+		b.push_back(tmp);
+	}
+	return b;
+}
 
 int Algorithm::getCols(void)
 {
@@ -88,9 +103,10 @@ Algorithm::Algorithm()
 
 }
 
-Algorithm::Algorithm(int cols, int rows, int i1, int i2, int c1, int c2, int cn)
+Algorithm::Algorithm(int cols, int rows, int i1, int i2, int c1, int c2, int cn, int max_value)
 {
-	this->max_price = -100000000;
+	this->max_price = max_value;
+	this->board = setBoard(rows, cols);
 	this->cols = cols;
 	this->rows = rows;
 	this->i1 = i1;
@@ -111,12 +127,25 @@ int Algorithm::getMaxPrice()
 	return max_price;
 }
 
-void Algorithm::run(vector<vector<int>> b, Tile * tiles, int id)
+void printTiles(vector<Tile> tiles)
+{
+	for (int i = 0; i < 5; i++)
+	{ 
+		cout << "Value of tile: " << tiles[i].value << endl;
+		cout << "Length of tile: " << tiles[i].length << endl;
+		cout << "Horizontal view: " << tiles[i].horizontal << endl;
+		cout << endl;
+	}
+
+}
+
+void Algorithm::run(vector<vector<int>> b, vector<Tile> tiles, int id)
 {
 	Node n;
 	queue<QueuedNode> q_node;
 	n.board = b;
-	q_node = fillQueue(b, tiles, 1);
+	
+	q_node = fillQueue(b, tiles, id);
 
 	while (!q_node.empty())
 	{
@@ -124,7 +153,7 @@ void Algorithm::run(vector<vector<int>> b, Tile * tiles, int id)
 		q_node.pop();
 	}
 	unsigned int i = 0;
-	//printQueue();
+	
 	#pragma omp parallel for private(i)
 	for (i = 0; i < q.size(); i++)
 	{
@@ -138,9 +167,10 @@ void Algorithm::run(vector<vector<int>> b, Tile * tiles, int id)
 	//cout << "With value : " << max_price << endl;
 }
 
-void Algorithm::BBAlgorithm(Node n, int id, Tile * tiles)
+void Algorithm::BBAlgorithm(Node n, int id, vector<Tile> tiles)
 {
 	position pos = getFreePosition(n.board);
+
 
 	if (pos.x == -1 && pos.y == -1)
 	{
@@ -152,8 +182,6 @@ void Algorithm::BBAlgorithm(Node n, int id, Tile * tiles)
 				{
 					max_price = n.value;
 					board = n.board;
-
-					//printBoard(board);
 				}
 			}
 		}
@@ -177,7 +205,7 @@ void Algorithm::BBAlgorithm(Node n, int id, Tile * tiles)
 	return;
 }
 
-queue<QueuedNode> Algorithm::fillQueue(vector<vector<int>> b, Tile * tiles, int id_n)
+queue<QueuedNode> Algorithm::fillQueue(vector<vector<int>> b, vector<Tile> tiles, int id_n)
 {
 	QueuedNode n;
 	int id = id_n;
@@ -353,22 +381,7 @@ bool Algorithm::freePath(vector<vector<int>> board, bool horizontal, int length,
 	}
 }
 
-vector<vector<int>> setBoard(int rows, int cols)
-{
-	vector<vector<int>> b;
-	for (int i = 0; i < rows; i++)
-	{
-		vector<int> tmp;
-		for (int j = 0; j < cols; j++)
-		{
-			 tmp.push_back(0);
-		}
-		b.push_back(tmp);
-	}
-	return b;
-}
-
-int *  createArrFromClass(vector<vector<int>> b, int next_id, Tile * tiles, int rows, int cols, int value)
+int *  createArrFromClass(vector<vector<int>> b, int next_id, vector<Tile> tiles, int rows, int cols, int value, int max_value)
 {
 	int * arr = new int[1024];
 	int index = 0;
@@ -385,6 +398,7 @@ int *  createArrFromClass(vector<vector<int>> b, int next_id, Tile * tiles, int 
 
 	arr[index++] = next_id;
 	arr[index++] = value;
+	arr[index++] = max_value;
 
 	for (int i = 0; i < rows; i++)
 	{
@@ -398,11 +412,13 @@ int *  createArrFromClass(vector<vector<int>> b, int next_id, Tile * tiles, int 
 
 }
 
+
 Box createBoardFromArr(int * arr)
 {
 	Box b;
-	int i1, i2, c1, c2, cn, cols, rows, id, value;
-	Tile tiles[5];
+	int i1, i2, c1, c2, cn, cols, rows, id, max_value, value;
+	vector<Tile> tiles;
+	Tile t;
 
 	rows = arr[0];
 	cols = arr[1];
@@ -413,27 +429,33 @@ Box createBoardFromArr(int * arr)
 	cn = arr[14];
 	id = arr[17];
 	value = arr[18];
+	max_value = arr[19];
 
-	Algorithm a(cols, rows, i1, i2, c1, c2, cn);
+	Algorithm a(cols, rows, i1, i2, c1, c2, cn, max_value);
 
-	tiles[0].value = c2;
-	tiles[0].length = i2;
-	tiles[0].horizontal = 1;
-	tiles[1].value = c2;
-	tiles[1].length = i2;
-	tiles[1].horizontal = 0;
-	tiles[2].value = c1;
-	tiles[2].length = i1;
-	tiles[2].horizontal = 1;
-	tiles[3].value = c1;
-	tiles[3].length = i1;
-	tiles[3].horizontal = 0;
-	tiles[4].value = cn;
-	tiles[4].length = 1;
-	tiles[4].horizontal = -1;
+	t.value = c2;
+	t.length = i2;
+	t.horizontal = 1;
+	tiles.push_back(t);
+	t.value = c2;
+	t.length = i2;
+	t.horizontal = 0;
+	tiles.push_back(t);
+	t.value = c1;
+	t.length = i1;
+	t.horizontal = 1;
+	tiles.push_back(t);
+	t.value = c1;
+	t.length = i1;
+	t.horizontal = 0;
+	tiles.push_back(t);
+	t.value = cn;
+	t.length = 1;
+	t.horizontal = -1;
+	tiles.push_back(t);
 
 
-	int index = 19;
+	int index = 20;
 	vector<vector<int>> board;
 	for (int i = 0; i < rows; i++)
 	{
@@ -453,6 +475,19 @@ Box createBoardFromArr(int * arr)
 
 	return b;
 
+}
+
+void printFinalBoard(vector<vector<int>> board)
+{
+	for (vector<int> v : board)
+	{
+		for (unsigned i = 0; i < v.size(); i++)
+		{
+			cout << v[i] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
 }
 
 int * createSolution(vector<vector<int>> board, int value, int rows, int cols)
@@ -502,18 +537,6 @@ Node parseSolution(int * arr)
 	return n;
 }
 
-void printFinalBoard(vector<vector<int>> board)
-{
-	for (vector<int> v : board)
-	{
-		for (unsigned i = 0; i < v.size(); i++)
-		{
-			cout << v[i] << " ";
-		}
-		cout << endl;
-	}
-	cout << endl;
-}
 
 
 const int tag_work = 0;
@@ -523,45 +546,54 @@ const int tag_finished = 2;
 int main(int argc, char* argv[])
 {
 	int proc_num, num_procs; // ˇc´ıslo procesu, poˇcet proces˚u
-	int max_value = -10000;
+	int provided, required = MPI_THREAD_FUNNELED;
 	vector<vector<int>> finalBoard;
-	MPI_Init(&argc, &argv);
+	MPI_Init_thread(&argc, &argv, required, &provided);
+	if (provided < required)
+	{
+		cout << "Error" << endl;
+		return 1;
+	}
 	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
 	MPI_Comm_rank(MPI_COMM_WORLD, &proc_num);
 
 	MPI_Status status;
 	if (proc_num == 0)
 	{
+		int max_value = -10000;
 		int rows, cols, i1, i2, c1, c2, cn, k, x, y;
 		vector<vector<int>> board;
-		Tile tiles[5];
+		vector<Tile> tiles;
+		Tile t;
 
 		cin >> rows >> cols;
 		board = setBoard(rows, cols);
 		cin >> i1 >> i2 >> c1 >> c2 >> cn;
 		cin >> k;
 
-		Algorithm a(cols, rows, i1, i2, c1, c2, cn);
+		Algorithm a(cols, rows, i1, i2, c1, c2, cn, max_value);
 
 		int i = 0;
-
-		tiles[0].value = c2;
-		tiles[0].length = i2;
-		tiles[0].horizontal = 1;
-		tiles[1].value = c2;
-		tiles[1].length = i2;
-		tiles[1].horizontal = 0;
-		tiles[2].value = c1;
-		tiles[2].length = i1;
-		tiles[2].horizontal = 1;
-		tiles[3].value = c1;
-		tiles[3].length = i1;
-		tiles[3].horizontal = 0;
-		tiles[4].value = cn;
-		tiles[4].length = 1;
-		tiles[4].horizontal = -1;
-
-
+		t.value = c2;
+		t.length = i2;
+		t.horizontal = 1;
+		tiles.push_back(t);
+		t.value = c2;
+		t.length = i2;
+		t.horizontal = 0;
+		tiles.push_back(t);
+		t.value = c1;
+		t.length = i1;
+		t.horizontal = 1;
+		tiles.push_back(t);
+		t.value = c1;
+		t.length = i1;
+		t.horizontal = 0;
+		tiles.push_back(t);
+		t.value = cn;
+		t.length = 1;
+		t.horizontal = -1;
+		tiles.push_back(t);
 
 		while (i++ < k)
 		{
@@ -576,7 +608,7 @@ int main(int argc, char* argv[])
 			QueuedNode n = q.front();
 			q.pop();
 
-			MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value), 1024, MPI_INT, i, tag_work, MPI_COMM_WORLD);
+			MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value, max_value), 1024, MPI_INT, i, tag_work, MPI_COMM_WORLD);
 		}
 
 		int working_slaves = num_procs - 1;
@@ -585,9 +617,6 @@ int main(int argc, char* argv[])
 			int * sol = new int[1024];
 			MPI_Recv(sol, 1024, MPI_INT, MPI_ANY_SOURCE, tag_done, MPI_COMM_WORLD, &status);
 			Node solution = parseSolution(sol);
-
-			cout << "Solution" << endl;
-			printFinalBoard(solution.board);
 
 			if (solution.value > max_value)
 			{
@@ -598,7 +627,7 @@ int main(int argc, char* argv[])
 			{
 				QueuedNode n = q.front();
 				q.pop();
-				MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value), 1024, MPI_INT, status.MPI_SOURCE, tag_work, MPI_COMM_WORLD);
+ 				MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value, max_value), 1024, MPI_INT, status.MPI_SOURCE, tag_work, MPI_COMM_WORLD);
 			} else {
 				MPI_Send(NULL, 0, MPI_INT, status.MPI_SOURCE, tag_finished, MPI_COMM_WORLD);
 				working_slaves--;
@@ -621,15 +650,10 @@ int main(int argc, char* argv[])
 			}
 			else if (status.MPI_TAG == tag_work)
 			{
-					cout << "Value received" << endl;
 					Box b = createBoardFromArr(arr);
-
-					printFinalBoard(b.board);
 
 					b.a.run(b.board, b.tiles, b.id);
 
-					cout << "Solution found" << endl;
-					printFinalBoard(b.a.getBoard());
 					MPI_Send(createSolution(b.a.getBoard(), b.a.getMaxPrice(), b.a.getRows(), b.a.getCols()), 1024, MPI_INT, 0, tag_done, MPI_COMM_WORLD);
 			}
 		}

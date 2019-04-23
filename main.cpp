@@ -575,28 +575,33 @@ int main(int argc, char* argv[])
 		{
 			QueuedNode n = q.front();
 			q.pop();
-			MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value), 1024, MPI_INT, i, tag_work, MPI_COMM_WORLD);
 
-			int working_slaves = num_procs - 1;
-			while (working_slaves > 0)
+			MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value), 1024, MPI_INT, i, tag_work, MPI_COMM_WORLD);
+		}
+
+		int working_slaves = num_procs - 1;
+		while (working_slaves > 0)
+		{
+			int * sol = new int[1024];
+			MPI_Recv(sol, 1024, MPI_INT, MPI_ANY_SOURCE, tag_done, MPI_COMM_WORLD, &status);
+			Node solution = parseSolution(sol);
+
+			cout << "Solution" << endl;
+			printFinalBoard(solution.board);
+
+			if (solution.value > max_value)
 			{
-				int * sol = NULL;
-				MPI_Recv(sol, 1024, MPI_INT, MPI_ANY_SOURCE, tag_done, MPI_COMM_WORLD, &status);
-				Node solution = parseSolution(sol);
-				if (solution.value > max_value)
-				{
-					max_value = solution.value;
-					finalBoard = solution.board;
-				}
-				if (!q.empty())
-				{
-					n = q.front();
-					q.pop();
-					MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value), 1024, MPI_INT, status.MPI_SOURCE, tag_work, MPI_COMM_WORLD);
-				} else {
-					MPI_Send(NULL, 0, MPI_INT, status.MPI_SOURCE, tag_finished, MPI_COMM_WORLD);
-					working_slaves--;
-				}
+				max_value = solution.value;
+				finalBoard = solution.board;
+			}
+			if (!q.empty())
+			{
+				QueuedNode n = q.front();
+				q.pop();
+				MPI_Send(createArrFromClass(n.node.board, n.next_id, tiles, rows, cols, n.node.value), 1024, MPI_INT, status.MPI_SOURCE, tag_work, MPI_COMM_WORLD);
+			} else {
+				MPI_Send(NULL, 0, MPI_INT, status.MPI_SOURCE, tag_finished, MPI_COMM_WORLD);
+				working_slaves--;
 			}
 		}
 
@@ -608,7 +613,7 @@ int main(int argc, char* argv[])
 	{
 		while (true)
 		{
-			int * arr = NULL;
+			int * arr = new int[1024];
 			MPI_Recv(arr, 1024, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
 			if (status.MPI_TAG == tag_finished)
 			{
@@ -616,9 +621,15 @@ int main(int argc, char* argv[])
 			}
 			else if (status.MPI_TAG == tag_work)
 			{
+					cout << "Value received" << endl;
 					Box b = createBoardFromArr(arr);
 
+					printFinalBoard(b.board);
+
 					b.a.run(b.board, b.tiles, b.id);
+
+					cout << "Solution found" << endl;
+					printFinalBoard(b.a.getBoard());
 					MPI_Send(createSolution(b.a.getBoard(), b.a.getMaxPrice(), b.a.getRows(), b.a.getCols()), 1024, MPI_INT, 0, tag_done, MPI_COMM_WORLD);
 			}
 		}
